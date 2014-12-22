@@ -1,0 +1,6 @@
+Changes in version 0.9.1
+  * Changed convention for 'f' in the case of 'ars' sampler; instead of expecting a list with elements 'f' (function) and 'g' (gradient), MfU.Sample now expects 'f' to accept a boolean flag 'grad' which must be set to FALSE for returning the function and to TRUE for returning the gradient. This change is made to avoid forcing the function to calculate both 'f' and 'g' when 'ars' does not expect both of them simultaneously. This can lead to computational efficiency for some log probabilities.
+  * Included a vignette.
+  * Split documentation files for MfU.Sample and MfU.Control.
+  * Minor content and formatting edits of documentation files.
+

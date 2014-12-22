@@ -9,14 +9,14 @@ MfU.fEval <- function(xk, k, x, f, ...) {
 MfU.fgEval.f <- function(uk, k, u, func, ...) {
   ret <- sapply(uk, function(ukk) {
     u[k] <- ukk
-    return (func(u, ...)$f)
+    return (func(u, ..., grad=FALSE))
   })
   return (ret)
 }
 MfU.fgEval.g <- function(uk, k, u, func, ...) {
   ret <- sapply(uk, function(ukk) {
     u[k] <- ukk
-    return ((func(u, ...)$g)[k])
+    return (func(u, ..., grad=TRUE)[k])
   })
   return (ret)
 }
