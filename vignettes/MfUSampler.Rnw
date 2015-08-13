@@ -10,6 +10,10 @@
 \usepackage{color}
 %\usepackage[toc]{appendix}
 \usepackage{amsthm}
+\usepackage{subfig}
+
+% \VignetteDepends{RcppArmadillo}
+% \VignetteDepends{RcppArmadillo, inline, mvtnorm}
 
 %\VignetteIndexEntry{Multivariate-from-Univariate MCMC Sampler: R Package MfUSampler}
 %\VignetteKeyword{bayesian, monte carlo markov chain, gibbs sampling, slice sampler, adaptive rejection sampler}
@@ -47,19 +51,19 @@
 
 \author{Alireza S. Mahani\\ Scientific Computing Group \\ Sentrana Inc. \And
 Mansour T.A. Sharabiani\\ National Heart and Lung Institute \\ Imperial College London}
-\title{Multivariate-from-Univariate MCMC Sampler: \proglang{R} Package \pkg{MfUSampler}}
+\title{Multivariate-from-Univariate MCMC Sampler: The \proglang{R} Package \pkg{MfUSampler}}
 
 %% for pretty printing and a nice hypersummary also set:
 \Plainauthor{Alireza S. Mahani, Mansour T.A. Sharabiani} %% comma-separated
-\Plaintitle{Multivariate-from-Univariate MCMC Sampler: R Package MfUSampler} %% without formatting
+\Plaintitle{Multivariate-from-Univariate MCMC Sampler: The R Package MfUSampler} %% without formatting
 \Shorttitle{Multivariate-from-Univariate MCMC Sampler: \proglang{R} Package \pkg{MfUSampler}} %% a short title (if necessary)
 
 %% an abstract and keywords
 \Abstract{ 
-The \proglang{R} package \pkg{MfUSampler} provides Monte Carlo Markov Chain machinery for generating samples from multivariate probability distributions using univariate sampling algorithms such as Slice Sampler and Adaptive Rejection Sampler. The sampler function performs a full cycle of univariate sampling steps, one coordinate at a time. In each step, the latest sample values obtained for other coordinates are used to form the conditional distributions. The concept is an extension of Gibbs sampling where each step involves, not an independent sample from the conditional distribution, but a Markov transition for which the conditional distribution is invariant. The software relies on proportionality of conditional distributions to the joint distribution to implement a thin wrapper for producing conditionals. Examples illustrate basic usage as well as methods for improving performance. By encapsulating the multivariate-from-univariate logic, \pkg{MfUSampler} provides a reliable library for rapid prototyping of custom Bayesian models while allowing for incremental performance optimizations such as utilization of conjugacy, conditional independence, and porting function evaluations to compiled languages.
+The \proglang{R} package \pkg{MfUSampler} provides Monte Carlo Markov Chain machinery for generating samples from multivariate probability distributions using univariate sampling algorithms such as slice sampler and adaptive rejection sampler. The multivariate wrapper performs a full cycle of univariate sampling steps, one coordinate at a time. In each step, the latest sample values obtained for other coordinates are used to form the conditional distributions. The concept is an extension of Gibbs sampling where each step involves, not an independent sample from the conditional distribution, but a Markov transition for which the conditional distribution is invariant. The software relies on proportionality of conditional distributions to the joint distribution to implement a thin wrapper for producing conditionals. Examples illustrate basic usage as well as methods for improving performance. By encapsulating the multivariate-from-univariate logic, \pkg{MfUSampler} provides a reliable library for rapid prototyping of custom Bayesian models while allowing for incremental performance optimizations such as utilization of conjugacy, conditional independence, and porting function evaluations to compiled languages. Utility functions for MCMC diagnostics as well as sample-based construction of predictive posterior distributions are provided in \pkg{MfUSampler}. 
 }
-\Keywords{monte carlo markov chain, slice sampler, adaptive rejection sampler, gibbs sampling}
-\Plainkeywords{monte carlo markov chain, slice sampler, adaptive rejection sampler, gibbs sampling} %% without formatting
+\Keywords{monte carlo markov chain, slice sampler, adaptive rejection sampler, gibbs sampling, Metropolis}
+\Plainkeywords{monte carlo markov chain, slice sampler, adaptive rejection sampler, gibbs sampling, Metropolis} %% without formatting
 %% at least one keyword must be supplied
 
 %% publication information
@@ -93,32 +97,415 @@ options(prompt = "R> ", continue = "+  ", width = 70, useFancyQuotes = FALSE)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Introduction}\label{section-introduction}
-Bayesian inference software such as \proglang{Stan}~\citep{stan-software:2014}, \proglang{OpenBUGS}~\citep{thomas2006making}, and \proglang{JAGS}~\citep{plummer2004jags} provide high-level, domain-specific languages (DSLs) to specify and sample from probabilistic Directed Acyclic Graphs (DAGs). In some Bayesian projects, the convenience of using such DSLs comes at the price of reduced flexibility in model specification, and suboptimality of the underlying sampling algorithms used by the compilers. Furthermore, for large projects the end-goal might be to implement all or part of the sampling algorithm in a high-performance - perhaps parallel - language. In such cases, researchers may choose to start their development work by `rolling their own' joint probability distributions from the DAG specification, followed by application of their choice of a sampling algorithm to the joint distribution.
+Bayesian inference software such as \proglang{Stan}~\citep{stan-software:2014}, \proglang{OpenBUGS}~\citep{thomas2006making}, and \proglang{JAGS}~\citep{plummer2004jags} provide high-level, domain-specific languages (DSLs) to specify and sample from probabilistic directed acyclic graphs (DAGs). In some Bayesian projects, the convenience of using such DSLs comes at the price of reduced flexibility in model specification, and suboptimality of the underlying sampling algorithms used by the compilers for the particular distribution that must be sampled. Furthermore, for large projects the end-goal might be to implement all or part of the sampling algorithm in a high-performance - perhaps parallel - language. In such cases, researchers may choose to start their development work by `rolling their own' joint probability distributions from the DAG specification, followed by application of their choice of a sampling algorithm to the joint distribution.
 
-Many Monte Carlo Markov Chain (MCMC) algorithms have been proposed over the years for sampling from complex posterior distributions. Perhaps the most widely-known algorithm is Metropolis~\citep{metropolis1953equation} and its generalization, Metropolis-Hastings (MH)~\citep{hastings1970monte}. These multivariate algorithms are very easy to implement, but they can be slow to converge without a carefully-selected proposal distribution. A particular flavor of MH is the Stochastic Newton Sampler~\citep{qi2002hessian}, where the proposal distribution is a multivariate Gaussian based on the second-order Taylor series expansion of the log-probability. This method has been implemented in the \proglang{R} package \pkg{sns}~\citep{mahani2014sns}. This algorithm can be quite effective for twice-differentiable, log-concave distributions such as those encountered in Generlized Linear Regression (GLM) problems. Hamiltonian Monte Carlo (HMC) algorithms~\citep{girolami2011riemann,neal2011mcmc} have also gained popularity due to development of techniques for automated tuning of their parameters~\citep{hoffman2014no}.
+Many Monte Carlo Markov Chain (MCMC) algorithms have been proposed over the years for sampling from complex posterior distributions. Perhaps the most widely-known algorithm is Metropolis~\citep{metropolis1953equation} and its generalization, Metropolis-Hastings (MH)~\citep{hastings1970monte}. These multivariate algorithms are easy to implement, but they can be slow to converge without a carefully-selected proposal distribution. A particular flavor of MH is the Stochastic Newton Sampler~\citep{qi2002hessian}, where the proposal distribution is a multivariate Gaussian based on the second-order Taylor series expansion of the log-probability. This method has been implemented in the \proglang{R} package \pkg{sns}~\citep{mahani2014sns}. It can be quite effective for twice-differentiable, log-concave distributions such as those encountered in generlized linear regression (GLM) problems. Another flavor of MH is the t-walk algorithm~\citep{christen2010general} which uses a set of scale-invariant proposal distributions to co-evolve two points in the state space [better description]. Hamiltonian Monte Carlo (HMC) algorithms~\citep{girolami2011riemann,neal2011mcmc} have also gained popularity due to emerging techniques for their automated tuning~\citep{hoffman2014no}.
 
-Univariate samplers tend to have few tuning parameters and thus well suited for black-box MCMC software. Two important examples are Adaptive Rejection Sampling~\citep{gilks1992adaptive} (or ARS) and Slice Sampling~\citep{neal2003slice}. ARS requires log-density to be concave, and needs the first derivative, while slice sampler is generic and derivative-free. To apply these univariate samplers to multivariate distributions, they must be applied one-coordinate-at-a-time according to the Gibbs sampling algorithm~\citep{geman1984stochastic}, where at the end of each univariate step the sampled value is used to update the conditional distribution for the next coordinate. \pkg{MfUSampler} encapsulates this logic into a library function, providing a fast and reliable path towards Bayesian model estimation for researchers working on novel DAG specifications.
-
-When posterior distribution exhibits strong correlation structure, one-coordinate-at-a-time algorithms can become inefficient as they fail to capture important geometry of the space~\citep{girolami2011riemann}. This has been a key motivation for research on black-box multivariate samplers, such as adaptations of slice sampler~\citep{thompson2011slice}.
+Univariate samplers tend to have few tuning parameters and thus are well suited for black-box MCMC software. Two important examples are adaptive rejection sampling~\citep{gilks1992adaptive} (or ARS) and slice sampling~\citep{neal2003slice}. ARS requires log-density to be concave, and needs its first derivative, while slice sampler is generic and derivative-free. To apply these univariate samplers to multivariate distributions, they must be applied one-coordinate-at-a-time according to the Gibbs sampling algorithm~\citep{geman1984stochastic}, where at the end of each univariate step the sampled value is used to update the conditional distribution for the next coordinate. \pkg{MfUSampler} encapsulates this logic into a library function, providing a fast and reliable path towards Bayesian model estimation for researchers working on novel DAG specifications. In addition to slice sampler and ARS, current version of \pkg{MfUSampler} (1.0.0) contains adaptive rejection Metropolis sampler~\citep{gilks1995adaptive} and univariate Metropolis with Gaussian proposal. Univariate samplers have their limits: when posterior distribution exhibits strong correlation structure, one-coordinate-at-a-time algorithms can become inefficient as they fail to capture important geometry of the space~\citep{girolami2011riemann}. This has been a key motivation for research on black-box multivariate samplers, such as adaptations of slice sampler~\citep{thompson2011slice} or the no-U-turn sampler~\citep{hoffman2014no}.
 
 % do a final edit of this paragraph
-The rest of this article is organized as follows. In Section~\ref{section-implementation} we provide a brief overview of the extended Gibbs sampling framework used in \pkg{MfUSampler}. In Section~\ref{section-usage} we illustrate how to use the software with an example. Section~\ref{section-workflow} shows how \pkg{MfUSampler} can be used to expedite the prototyping stage in Bayesian modeling problems. Finally, Section~\ref{section-summary} provides a summary and concluding remarks.
+The rest of this article is organized as follows. In Section~\ref{section-implementation} we provide a brief overview of the extended Gibbs sampling framework used in \pkg{MfUSampler}. In Section~\ref{section-usage} we illustrate how to use the software with an example. Section~\ref{section-performance} shows how \pkg{MfUSampler} discussed several performance optimization techniques that can be used in conjunction with \pkg{MfUSampler}. Finally, Section~\ref{section-summary} provides a summary and concluding remarks.
 
-\section{Implementation}\label{section-implementation}
-\pkg{MfUSampler} relies on three components:
-\begin{enumerate}
-\item Univariate MCMC samplers: As of version 0.9.1 of \pkg{MfUSampler}, two such samplers are supported: Univariate Slice Sampler with Stepout and Shrinkage~\citep{neal2003slice} and Adaptive Rejection Sampler~\citep{gilks1992adaptive}. For slice sampler, we have imported - with small modifications - Radford Neal's \proglang{R} code, posted on his website\footnote{\url{http://www.cs.toronto.edu/~radford/ftp/slice-R-prog}}, while for ARS we use the \proglang{R} package \pkg{ars}~\citep{rodrigues2014ars}. For technical details on the univariate sampling algorithms, see aforementioned publications or statistical textbooks~\citep{robert1999monte}.
-\item Main sampling routine, \code{MfU.Sample}: This function is essentially a \code{for} loop for applying the underlying univariate sampler to each coordinate of the multivariate distribution. We refer to this as `extended Gibbs sampling' (Section~\ref{subsection-extended-gibbs}). The function \code{MfU.Control} allows the user to set the tuning parameters of the univariate sampler. Both \code{MfU.Sample} and \code{MfU.Control} are public functions, and their detailed behavior can be examined by consulting the package documentation.
-\item Wrapper functions \code{MfU.fEval}, \code{MfU.fgEval.f} and \code{MfU.fgEval.g} (all internal functions) that return the conditional distribution and its gradients for each coordinate, using the underlying joint distribution and its gradient vector (Section~\ref{subsection-conditional-joint}).
-\end{enumerate}
+\section[Theory and Implementation of MfUSampler]{Theory and Implementation of \pkg{MfUSampler}}\label{section-implementation}
+In this section, we discuss the theoretical underpinnings of the \pkg{MfUSampler} package, including extended Gibbs sampling (Section~\ref{subsection-extended-gibbs}), and proportionality of conditional and joint distributions (Section~\ref{subsection-conditional-joint}). Software components of \pkg{MfUSampler}, described in Section~\ref{subsection-implementation}, are best understood in this theoretical background.
 
-\subsection{Extended Gibbs Sampling}\label{subsection-extended-gibbs}
-The \code{for} loop inside \code{MfU.Sample} is a direct implementation of Gibbs sampling~\citep{bishop2006pattern}, with one conceptual extension: rather than requiring an independent sample from each coordinate's conditional distribution, we expect a Markov transition for which the conditional distribution is an invariant distribution. Among the current univariate samplers implemented in \pkg{MfUSampler}, Adaptive Rejection Sampler produces a standard Gibbs sampler while the Slice Sampler falls under the `extended' Gibbs sampler. The following lemma provides the proof of invariance. (For a discussion of ergodicity for slice sampler, see ~\cite{roberts1999convergence}).
+\subsection{Extended Gibbs sampling}\label{subsection-extended-gibbs}
+Gibbs sampling~\citep{bishop2006pattern} involves iterating through state space coordinates, one at a time, and drawing samples from the distribution of each coordinate, conditioned on the latest sampled values for all remaining coordinates. Gibbs sampling reduces a multivariate sampling problem into a series of univariate problems, which can be more tractable.
+
+In what we refer to as `extended Gibbs sampling', rather than requiring an independent sample from each coordinate's conditional distribution, we expect a Markov transition for which the conditional distribution is an invariant distribution. Among the current univariate samplers implemented in \pkg{MfUSampler}, adaptive rejection sampler produces a standard Gibbs sampler while the remaining samplers falls in the `extended Gibbs sampler' category. The following lemma forms the basis for proving the validity of extended Gibbs sampling as an MCMC sampler. (For a discussion of ergodicity of MCMC samplers, see ~\cite{roberts1999convergence,jarner2000geometric}).
 \begin{lemma}
 If a coordinate-wise Markov transition leaves the conditional distribution invariant, it will also leave the joint distribution invariant.
 \end{lemma}
+Proof is given in Appendix~\ref{section-appendix-lemma}. A full Gibbs cycle is simply a succession of coordinate-wise Markov transitions, and since each one leaves the target distribution invariant according to the above lemma, same is true of the resulting composite Markov transition density.
 
-\begin{proof}
+\subsection{Proportionality of conditional and joint distributions}\label{subsection-conditional-joint}
+Using univariate samplers within Gibbs sampling framework requires access to conditional distributions, up to a multiplicative constant (in terms of coordinate being sampled). Referring to conditional distribution for the $k$'th coordinate as $p(x_k | \xx_{\setminus k})$, we examine the following application of Bayes' rule
+\begin{equation}
+p(x_k | \xx_{\setminus k}) = \frac{p(x_k , \xx_{\setminus k})}{p(\xx_{\setminus k})} \propto p(x_k , \xx_{\setminus k}),
+\end{equation}
+to observe that, since the normalizing factor - $p(\xx_{\setminus k})$ - is independent of $x_k$, the joint  and conditional distributions are porportional. Therefore, the joint distribution can be supplied to univariate sampling routines in lieu of conditional distributions during each step of Gibbs sampling. \pkg{MfUSampler} takes advantage of this property, as described next.
+
+\subsection{Implementation}\label{subsection-implementation}
+The \pkg{MfUSampler} software consists of 5 components: 1) connectors, 2) univariate samplers, 3) Gibbs wrappers, 4) diagnostic utilities, and 5) full Bayesian prediction. We describe each component below. Figure~\ref{fig-process-diagram} provides an overview of how these components fit in the overall process flow of \pkg{MfUSampler}. Below we describe each component in detail.
+
+\begin{figure}
+\centering
+\begin{tabular}{c}
+\subfloat{\includegraphics[]{MfUSampler_process_diagram.pdf}}
+\end{tabular}
+\caption{Software component and process flow for \pkg{MfUSampler}. Connector and sampler private modules mediate Gibbs sampling of user-supplied PDF.}
+\label{fig-process-diagram}
+\end{figure}
+
+\textit{Connectors} The internal functions \code{MfU.fEval}, \code{MfU.fgEval.f} and \code{MfU.fgEval.g} return the conditional log-density and its gradients for each coordinate, using the underlying joint log-density and its gradient vector (Section~\ref{subsection-conditional-joint}). These functions act as the bridge between the user-supplied, multivariate log-densities and the univariate samplers. The vectorized functions \code{MfU.fgEval.f} and \code{MfU.fgEval.g} are used by the \code{ars} function (see below). Other samplers, which are derivative-free, use \code{MfU.fEval}.
+
+\textit{Univariate samplers} These functions are responsible for producing a single MCMC jump for univariate distributions resulting from applying the connector functions to the user-supplied, multivariate distribution. As of version 1.0.0, \pkg{MfUSampler} supports the following 4 samplers:
+\begin{enumerate}
+\item Univariate slice sampler with stepout and shrinkage~\citep{neal2003slice}. The code, wrapped in the internal function \code{MfU.Slice}, is taken - with small modifications - from Radford Neal's website\footnote{\url{http://www.cs.toronto.edu/~radford/ftp/slice-R-prog}}. Slice sampler is derivative-free and robust, i.e. its performance is rather insensitive to its tuning parameters. It is the default option in \code{MfU.Sample} and \code{MfU.Sample.Run}.
+\item Adaptive rejection sampler~\citep{gilks1992adaptive}, imported from \proglang{R} package \pkg{ars}~\citep{rodrigues2014ars}. ARS requires log-density to be concave, and its gradient. Our experience shows that it is somewhat more sensitive to the choice of tuning parameters, compared to slice sampler (Section~\ref{subsection-sampling-ars}).
+\item Adpative rejection Metropolis sampler~\citep{gilks1995adaptive}, imported from \proglang{R} package \pkg{HI}~\citep{petris2013HI}. This algorithm is an adaptation of ARS with an additional Metropolis acceptance test, aimed at accommodating distributions that are not log-concave. The algorithm can also be applied directly to a multivariate distribution. However, see~\citep{gilks1997corrigendum}.
+\item Univariate Metropolis with Gaussian proposal, implemented by \pkg{MfUSampler} (function \code{MfU.Univariate.Metropolis}). This simple sampler can be inefficient, unless the standard deviation of Gaussian proposal is chosen carefully. It has been primarily included as a reference for other, more practical choices.
+\end{enumerate}
+For technical details on the sampling algorithms and their tuning parameters, see help file for \code{MfU.Sample}, as well as aforementioned publications or statistical textbooks~\citep{robert1999monte}.
+
+\textit{Gibbs wrappers} The function \code{MfU.Sample} implements the extended Gibbs sampling concept (Section~\ref{subsection-extended-gibbs}), using a \code{for} loop that applies the underlying univariate sampler to each coordinate of the multivariate distribution. The function \code{MfU.Control} allows the user to set the tuning parameters of the univariate sampler. \code{MfU.Sample.Run} is a light wrapper around \code{MfU.Sample} for drawing multiple samples.
+
+\textit{Diagnostic utilities} Implementations of generic S3 methods \code{summary} and \code{plot} for \code{MfU} class - output of \code{MfU.Sample.Run} - are light wrappers around corresponding methods for the \code{mcmc} class in the \proglang{R} package \code{coda}, with the addition of sample-based covariance matrix, effective sample size, time, and number of independent samples per sec.
+
+\textit{Full Bayesian prediction} The S3 method \code{predict.MfU} function allows for sample-based reconstruction of predictive posterior distribution for any user-supplied prediction function. The mechanics and advantages of full Bayesian prediction are discussed in the \pkg{sns} vignette~\citep{mahani2014sns}. See Section~\ref{subsection-prediction} of this document for an example.
+
+\section[Using MfUSampler]{Using \pkg{MfUSampler}}\label{section-usage}
+In this section, we illustrate how \pkg{MfUSampler} can be used for building Bayesian models. We begin by introducing the data set used throughout the examples in this paper. This is followed by illustration of how univariate samplers can be readily applied to sample from the posterior distribution of our problem. Application of diagnostic and prediction utility functions are illustrated last.
+
+Before proceeding, we load \pkg{MfUSampler} into an \proglang{R} session, and select the seed value to feed to the random number generator at the beginning of each code segment (for reproducibility), and the number of MCMC samples to collect in each run:
+<<>>=
+library("MfUSampler")
+my.seed <- 0
+nsmp <- 10
+@
+
+\subsection{Diabetic retinopathy data set}\label{subsection-dataset}
+This data set is a 2$\times$8 contingency table, containing the number of occurances of diabetic retinopathy for patients with 8 different durations of diabetes. The tabular form of the data set can be found in \cite{knuiman1988incorporating}.
+
+The mid-point of diabetes duration bands are encoded in the vector \code{z} below, while the number of patients with/without retinopathy are encoded in \code{m1} and \code{m2} vectors: The \code{prior} suffix corresponds to numbers from a previous study, while \code{current} reflects the results of current study.
+
+<<>>=
+z <- c(1, 4, 7, 10, 13, 16, 19, 24)
+m1.prior <- c(17, 26, 39, 27, 35, 37, 26, 23)
+m2.prior <- c(215, 218, 137, 62, 36, 16, 13, 15)
+m1.current <- c(46, 52, 44, 54, 38, 39, 23, 52)
+m2.current <- c(290, 211, 134, 91, 53, 42, 23, 32)
+@
+Following~\cite{knuiman1988incorporating}, our model assumes that the linear predictor for this grouped logistic regression problem has three variables: unit vector (corresponding to intercept), $z$ and $z^2$:
+<<>>=
+X <- cbind(1, z, z^2)
+@
+
+
+\subsection{Slice sampling from posterior}\label{subsection-sampling-slice}
+The following function implements the log-posterior for our problem, assuming a multivariate Gaussian prior on the coefficient vector, \code{beta}, with mean \code{beta0} and covariance matrix \code{W}. The default values represent a non-informative - or flat - prior.
+<<>>=
+loglike <- function(beta, X, m1, m2) {
+  beta <- as.numeric(beta)
+  Xbeta <- X %*% beta
+  return (-sum((m1 + m2) * log(1 + exp(-Xbeta)) + m2 * Xbeta))
+}
+logprior <- function(beta, beta0 , W) {
+  return (-0.5 * t(beta - beta0) %*% solve(W) %*% (beta - beta0))
+}
+logpost <- function(beta, X, m1, m2
+  , beta0 = rep(0,0, 3), W = diag(1e+6, nrow = 3)) {
+  return (logprior(beta, beta0, W) + loglike(beta, X, m1, m2))
+}
+@
+Incorporating prior information in this problem can be done in two ways: 1) extracting \code{beta0} and \code{W} from prior data (using flat priors during estimation), and feeding these numbers as priors for estimating the model with current data, 2) simply adding prior and current numbers to arrive at the posterior contigency table. While the first approach can be more flexible, as argued in \cite{knuiman1988incorporating}, here we opt for the second approach for brevity of presentation:
+<<>>=
+m1.total <- m1.prior + m1.current
+m2.total <- m2.prior + m2.current
+@
+We begin by drawing 1000 samples using the slice sampler, and printing a summary of samples:
+<<eval=FALSE>>=
+set.seed(my.seed)
+beta.ini <- c(0.0, 0.0, 0.0)
+beta.smp <- MfU.Sample.Run(beta.ini, logpost, nsmp = nsmp
+  , X = X, m1 = m1.total, m2 = m2.total)
+summ.slice <- summary(beta.smp)
+@
+<<eval=TRUE,echo=FALSE>>=
+load("summ.slice")
+@
+<<>>=
+print(summ.slice)
+@
+Sample mean is quite close to values reported in ~\cite{knuiman1988incorporating}. Similarly, the sample covariance matrix is reasonably close to their reported values:
+<<>>=
+print(summ.slice$covar)
+@
+
+\subsection{Adaptive rejection sampling of posterior}\label{subsection-sampling-ars}
+Next, we illustrate how ARS can be used for this posterior distribution. We need to implement the gradient of log-density in order to use ARS. Furthermore, we must ensure that the distribution is log-concave, or equivalently that the Hessian of log-density is negative-definite. It is easy to verify that this distribution satisfies our requirement. For theoretical and software support in assessing log-concavity of distributions and verifying correct implementation of their derivatives, see the vignette for the \proglang{R} package \pkg{sns}~\citep{mahani2014sns}.
+<<>>=
+logpost.fg <- function(beta, X, m1, m2
+  , beta0 = rep(0.0, 3), W = diag(1e+3, nrow = 3)
+  , grad = FALSE) {
+  Xbeta <- X %*% beta
+  
+  if (grad) {
+    log.prior.d <- -solve(W) %*% (beta - beta0)
+    log.like.d <- t(X) %*% ((m1 + m2) / (1 + exp(Xbeta)) - m2)
+    return (log.prior.d + log.like.d)
+  }
+  
+  log.prior <- -0.5 * t(beta - beta0) %*% solve(W) %*% (beta - beta0)
+  log.like <- -sum((m1 + m2) * log(1 + exp(-Xbeta)) + m2 * Xbeta)
+  log.post <- log.prior + log.like
+
+  return (log.post)
+}
+@
+Note the use of mandatory boolean flag \code{grad}, indicating whether log-density or its gradient must be returned. Next we feed this log-density to \code{MfU.Sample.Run}:
+<<>>=
+set.seed(my.seed)
+beta.ini <- c(0.0, 0.0, 0.0)
+beta.smp <- MfU.Sample.Run(beta.ini, logpost.fg, nsmp = nsmp
+  , uni.sampler = "ars"
+  , control = MfU.Control(3, ars.x = list(c(-10, 0, 10)
+                , c(-1, 0, 1), c(-0.1, 0.0, 0.1)))
+  , X = X, m1 = m1.total, m2 = m2.total)
+summ.ars <- summary(beta.smp)
+@
+<<eval=TRUE,echo=FALSE>>=
+load("summ.ars")
+@
+<<>>=
+print(summ.ars)
+@
+Note that we have provided custom values for the control parameter \code{ars.x}. For this problem, the ARS algorithm is sensitive to these initial values, and can fail to identify log-concavity of the distribution in some cases. Generally, we have found the slice sampler to require less tuning to achieve reasonable performance. Interested readers can see examples of using other samplers included in \pkg{MfUSampler} - namely ARMS and univariate Metropolis - by typing \code{?MfU.Sample} in the \proglang{R} session.
+
+\subsection{Full Bayesian prediction}\label{subsection-prediction}
+The \code{predict} function in the \code{MfUSampler} package can be used to do sample-based reconstruction of arbitrary functions of model parameters. This includes deterministic as well as stochastic functions. For example, assume we want to know the probability distribution of the probability of retinopathy for each value of $z$ in our training set. The prediction function has the following simple form:
+<<>>=
+predfunc.mean <- function(beta, X) {
+  return (1/(1 + exp(-X %*% beta)))
+}
+@
+We can now generate samples for this predicted quantity:
+<<>>=
+pred.mean <- predict(beta.smp, predfunc.mean, X)
+predmean.summ <- summary(pred.mean)
+print(predmean.summ, n = 8)
+@
+We can also ask a different question: what is the distribution of percentage of population with retinopathy in each given band of diabetes duration. The prediction function is a slight modification of the previous one:
+<<>>=
+predfunc.binary <- function(beta, X) {
+  return (1*(runif(nrow(X)) < 1/(1 + exp(-X %*% beta))))
+}
+pred.binary <- predict(beta.smp, predfunc.binary, X)
+predbinary.summ <- summary(pred.binary)
+print(predbinary.summ, n = 8)
+@
+We see that mean values from the two predictions are close, and in the limit of infinite samples they will converge towards the same values. However, the SD numbers are much larger for the binary prediction as it combines the uncertainty of estimating the coefficients, with the uncertainty of the process that generates the (binary) outcome. The value of full Bayesian prediction, particularly in business and decision-making settings, is that it combines these two sources of uncertainty to provide the user with a full reprsentation of uncertainty in estimating actual outcomes, and not just mean/expected values.
+
+\section{Performance improvement}\label{section-performance}
+Applying \code{MfU.Sample.Run} to the full joint PDF of a Bayesian model, implemented in \proglang{R}, is often a good starting point. For small data sets, this may well be sufficient. For example, in the diabetic retinopathy data set described in Section~\ref{section-usage}, we are able to draw 10,000 samples from the posterior distribution in less than xx seconds. However, for large data sets we must look for opportunities to improve the performance. In this section, we describe two general strategies for speeding up sampling of posterior distributions within the framework of \pkg{MfUSampler}: 1) utilizing the structure of the underlying model graph, and 2) high-peformance evaluation of posterior function. We describe these two strategies using extensions of the diabetic retinopathy data set. At the end of this section, we provide an overview of other performance optimization approaches, as well as pointers for further reading.
+
+\subsection[Diabetic retinopathy: Hierarchical Bayesian with continuous z]{Diabetic retinopathy: Hierarchical Bayesian with continuous $z$}\label{subsection-hb-data}
+To illustrate the performance optimization strategies discussed in this section, we extend the diabetic retinopathy data set - by simulations - to define a HB problem with continuous $z$. In other words, we turn the grouped logistic regression into a standard logistic regression, where the outcome is not frequency of occurance of retinopathy within a diabetic duration band ($z$), but a binary indicator for each continuous value of $z$. We generate coefficients for 50 observation groups from the multivariate Gaussian prior discussed in the last section (number from \cite{knuiman1988incorporating} are used), and simulate binary outcome in each group based on its coefficients. Number of observations per group can be adjusted via the parameter \code{nrep}. $z$ values are sampled - with replacement - from real data, with the addition of a small random jitter. Data generation code is as follows:
+<<>>=
+library("mvtnorm")
+set.seed(my.seed)
+nrep <- 50
+m.current <- m1.current + m2.current
+nz.exp <- nrep * sum(m.current)
+jitter <- 1.0
+z.exp <- sample(z, size = nz.exp, replace = T, prob = m.current) +
+  (2*runif(nz.exp) - 1) * jitter
+X.exp <- cbind(1, z.exp, z.exp^2)
+beta0.prior <- c(-3.17, 0.33, -0.007)
+W.prior <- 1e-4 * matrix(c(638, -111, 3.9
+  , -111, 24.1, -0.9, 3.9, -0.9, 0.04), ncol = 3)
+ngrp <- 50
+beta.mat <- t(rmvnorm(ngrp, mean = beta0.prior, sigma = W.prior))
+y.mat.exp <- 1* matrix(runif(ngrp * nz.exp) < 
+  1 / (1 + exp(-X.exp %*% beta.mat)), ncol = ngrp)
+@
+
+
+\subsection{Utilizing graph structure}\label{subsection-graph-struct}
+In directed acyclic graphs, the joint distribution can be factorized into the product of conditional distributions for all nodes, conditioned on parent nodes of each node~\citep{bishop2006pattern}. For undirected graphs, factorization can be done over maximal cliques of the graph. When sampling from conditional distribution of a variable - conditioned on all remaining variables - as is done during Gibbs sampling, not all such multiplicative factors involve the variable being sampled, and can be safely ignored during evaluation of the conditional distribution and its derivatives. In some cases, the resulting time savings can be quite significant, with a prime example being the hierarchical Bayesian models~\citep{gelman2006data}. In HB models, the conditional distribution of the low-level coefficient vector for each group during Gibbs sampling contains multiplicative contributions from other groups. This is reflected in the following log-posterior functions for the coefficients of all groups that contain one additive term per group:
+<<>>=
+hb.logprior <- function(beta.flat, beta0, W) {
+  beta.mat <- matrix(beta.flat, nrow = 3)
+  return (sum(apply(beta.mat, 2, logprior, beta0, W)))
+}
+hb.loglike <- function(beta.flat, X, y) {
+  beta.mat <- matrix(beta.flat, nrow = 3)
+  ngrp <- ncol(beta.mat)
+  return (sum(sapply(1:ngrp, function(n) {
+    xbeta <- X %*% beta.mat[, n]
+    return (-sum((1-y[, n]) * xbeta + log(1 + exp(-xbeta))))
+  })))
+}
+hb.logpost <- function(beta.flat, X, y, beta0, W) {
+  return (hb.logprior(beta.flat, beta0, W) + 
+            hb.loglike(beta.flat, X, y))
+}
+@
+A naive implementation of full PDF is thus pointlessly duplicating computations by \code{ngrp} times:
+<<eval=FALSE>>=
+nsmp <- 10
+set.seed(my.seed)
+beta.flat.ini <- rep(0.0, 3 * ngrp)
+beta.flat.smp <- MfU.Sample.Run(beta.flat.ini, hb.logpost
+                     , X = X.exp, y = y.mat.exp
+                     , beta0 = beta0.prior, W = W.prior, nsmp = nsmp)
+t.naive <- attr(beta.flat.smp, "t")
+@
+<<echo=FALSE>>=
+load("t.naive")
+@
+<<>>=
+cat("hb sampling time - naive method:", t.naive, "sec\n")
+@
+Note that, in the above, we have made the simplifying assumption that we know the true values of the parameters of the multivariate Gaussian prior, i.e. \code{beta0.prior} and \code{W.prior}. In reality, of course, prior parameters must also be estimated from the data, and thus the Gibbs cycle includes not just the lower-level coefficients but also the prior parameters. However, all the strategies discussed in this section can be conceptually illustrated while focusing only on \code{beta}'s.
+
+The first optimization strategy is to take advantage of the conditional independence property by evaluating only the relevant term during sampling of coefficients in each group:
+<<>>=
+hb.loglike.grp <- function(beta, X, y) {
+  beta <- as.numeric(beta)
+  xbeta <- X %*% beta
+  return (-sum((1-y) * xbeta + log(1 + exp(-xbeta))))
+}
+hb.logprior.grp <- logprior
+hb.logpost.grp <- function(beta, X, y
+  , beta0 = rep(0,0, 3), W = diag(1e+6, nrow = 3)) {
+  return (hb.logprior.grp(beta, beta0, W) +
+            hb.loglike.grp(beta, X, y))
+}
+@
+The price to pay is that we must implement a custom \code{for} loop to replace \code{MfU.Sample.Run}. As expected, this revised approach produces a speedup factor that approaches \code{ngrp}:
+<<echo=FALSE>>=
+t.revised <- 10.7
+@
+<<eval=FALSE>>=
+set.seed(my.seed)
+beta.mat.buff <- matrix(rep(0.0, 3 * ngrp), nrow = 3)
+beta.mat.smp <- array(NA, dim = c(nsmp, 3, ngrp))
+t.revised <- proc.time()[3]
+for (i in 1:nsmp) {
+  for (n in 1:ngrp) {
+    beta.mat.buff[, n] <- MfU.Sample(beta.mat.buff[, n], hb.logpost.grp
+      , uni.sampler = "slice", X = X.exp
+      , y = y.mat.exp[, n], beta0 = beta0.prior, W = W.prior)
+  }
+  beta.mat.smp[i, , ] <- beta.mat.buff
+}
+t.revised <- proc.time()[3] - t.revised
+@
+<<echo=FALSE>>=
+load("t.revised")
+@
+<<eval=TRUE>>=
+cat("hb sampling time - revised method:", t.revised, "sec\n")
+@
+Another implication of conditional independence for HB models is that the conditional distribution for coefficients of each group does not include the coefficients of other groups. This can be verified by examining \code{hb.logpost.grp}. As such, it is mathematically valid to sample coefficients of all groups, while conditioning all distributions on values of remaining variables~\citep{mahani2015simd}. We can use the \code{doParallel} package for multi-core parallelization.
+<<eval=FALSE>>=
+library("doParallel")
+ncores <- 2
+registerDoParallel(ncores)
+
+set.seed(my.seed)
+beta.mat.buff <- matrix(rep(0.0, 3 * ngrp), nrow = 3)
+beta.mat.smp <- array(NA, dim = c(nsmp, 3, ngrp))
+t.parallel <- proc.time()[3]
+for (i in 1:nsmp) {
+  beta.mat.buff <- foreach(n=1:ngrp, .combine = cbind
+    , .options.multicore=list(preschedule=TRUE)) %dopar% {
+      MfU.Sample(beta.mat.buff[, n], hb.logpost.grp, uni.sampler = "slice"
+        , X = X.exp, y = y.mat.exp[, n]
+        , beta0 = beta0.prior, W = W.prior)
+  }
+  beta.mat.smp[i, , ] <- beta.mat.buff
+}
+t.parallel <- proc.time()[3] - t.parallel
+@
+<<echo=FALSE>>=
+load("t.parallel")
+@
+<<>>=
+cat("hb sampling time - revised & parallel method:", t.parallel, "sec\n")
+@
+In the above, we have continued to use the defualt \proglang{R} random number generator for code brevity. In practice, in order to generate uncorrelated random numbers across multiple execution threads, one should use parallel RNG streams such as those provided in the \proglang{R} package \pkg{rstream}~\citep{leydold2015rstream}.
+
+\subsection{High-performance PDF evaluation}\label{subsection-pdf}
+For most MCMC algorithms, the majority of sampling time is spent on evaluating the log-density (and its derivatives if needed). Efficient implementation of functions responsible for log-density evaluation is therefore a rewarding optimization strategy which can be combined with the strategies discussed in section~\ref{subsection-graph-struct}. The \pkg{Rcpp}~\citep{rcpp2011dirk} framework offers a convenient way to port R functions to \proglang{C++}. Here we use the \pkg{RcppArmadillo}~\citep{rcpparmadillo2014dirk} package for its convenient matrix algebra operations to transform the log-likelihood component of the log-posterior (as it takes the majority of time for large data, compared to log-prior):
+<<>>=
+library("RcppArmadillo")
+library("inline")
+code <- "
+  arma::vec beta_cpp = Rcpp::as<arma::vec>(beta);
+  arma::mat X_cpp = Rcpp::as<arma::mat>(X);
+  arma::vec y_cpp = Rcpp::as<arma::vec>(y);
+  arma::vec xbeta = X_cpp * beta_cpp;
+  int n = X_cpp.n_rows;
+  double logp = 0.0;
+  for (int i=0; i<n; i++) {
+    // (1-y[, n]) * xbeta + log(1 + exp(-xbeta))
+    logp -= (1.0 - y_cpp[i]) * xbeta[i] + log(1.0 + exp(-xbeta[i]));
+  }
+  return Rcpp::wrap(logp);
+"
+hb.loglike.grp.rcpp <- cxxfunction(
+  signature(beta = "numeric", X = "numeric", y = "numeric")
+  , code, plugin="RcppArmadillo")
+hb.logpost.grp.rcpp <- function(beta, X, y
+  , beta0 = rep(0,0, 3), W = diag(1e+6, nrow = 3)) {
+  return (hb.logprior.grp(beta, beta0, W) +
+            hb.loglike.grp.rcpp(beta, X, y))
+}
+@
+We simply replace \code{hb.logpost.grp} with \code{hb.logpost.grp.rcpp} in the parallel sampling approach from previous section:
+<<eval=FALSE>>=
+set.seed(my.seed)
+beta.mat.buff <- matrix(rep(0.0, 3 * ngrp), nrow = 3)
+beta.mat.smp <- array(NA, dim = c(nsmp, 3, ngrp))
+t.rcpp <- proc.time()[3]
+for (i in 1:nsmp) {
+  beta.mat.buff <- foreach(n=1:ngrp
+    , .combine = cbind, .options.multicore=list(preschedule=TRUE)) %dopar% {
+      MfU.Sample(beta.mat.buff[, n], hb.logpost.grp.rcpp, uni.sampler = "slice"
+        , X = X.exp, y = y.mat.exp[, n]
+        , beta0 = beta0.prior, W = W.prior)
+  }
+  beta.mat.smp[i, , ] <- beta.mat.buff
+}
+t.rcpp <- proc.time()[3] - t.rcpp
+@
+<<echo=FALSE>>=
+load("t.rcpp")
+@
+<<>>=
+cat("hb sampling time - revised & parallel & rcpp method:", t.rcpp, "sec\n")
+@
+While the result is a decent speedup given the relatively small effort put in, yet the impact is not as significant as the previous two strategies. It must be noted that matrix algebra operations in \proglang{R} are handled by \proglang{BLAS} and \proglang{LAPACK} libraries, written in \proglang{C} and \proglang{Fortran}. Therefore, the majpr benefit of porting the log-likelihood function to \proglang{C++} in the above example is likely to be the consolidation of data and control transfer between the interpretation layer and the computational back-end. For large problems, even parallel hardware such as Graphic Processing Units (GPUs) can be utilized by writing log-density functions in languages such as \proglang{CUDA}~\citep{Nickolls:2008:SPP:1365490.1365500}, while continuing to take advantage of \pkg{MfUSampler} for sampler control logic. Minimizing data movement between processor and co-processor is a key performance factor in such cases.
+
+Figur~\ref{fig-optim} summarizes the impact of the three optimization stragies discussed in this section. We see that, for this particular problem and set of parameters, the cumulative impact of the 3 optimization strategies is a xx times speedup.
+
+<<label=my_plot,include=FALSE,echo=FALSE>>=
+yplot <- c(t.naive, t.revised, t.parallel, t.rcpp)
+names(yplot) <- c("naive", " + separability", " + parallel", " + Rcpp")
+xmids <- barplot(yplot, xlab = "optimization level", yaxt = "n", space = 0.5
+                 #, log = "y"
+                 #, ylab = "time (sec)"
+                 , ylim = c(0, yplot[1] + 10)
+        )
+text(x = xmids, y = yplot/2, labels = format(yplot, digits = 3))
+text(x = xmids[2:4], y = yplot[2:4] + 8, labels = paste(format(c(t.naive / t.revised, t.revised / t.parallel, t.parallel / t.rcpp), digits = 2), "x", sep = ""))
+@
+\begin{figure}
+<<label=fig1,fig=TRUE,echo=FALSE>>=
+<<my_plot>>
+@
+\caption{Time needed to draw 1000 samples for the HB logistic regression problem, based on the diabetic retinopathy data set introduced in Section~\ref{subsection-dataset}, at various stages of optimization. Each step represents the cumulative effect of strategies, starting with the left-most bar corresponding to the naive implementation. Numbers above bars show speedup due to each optimization.}
+\label{fig-optim}
+\end{figure}
+
+In addition to the above-mentioned strategies, there are several other options available for improving performance of MCMC sampling techniques for Bayesian models. Examples include differential update, single-instruction multiple-data (SIMD) parallelization of log-likelihood calculation, and batch random number generation. For a detailed discussion of these topics, see \cite{mahani2015simd}.
+
+\section{Summary}\label{section-summary}
+The \proglang{R} package \pkg{MfUSampler} enables MCMC sampling of multivariate distributions using univariate algorithms. It relies on an extension of Gibbs sampling from univariate independent sampling to univariate Markov transitions, and proportionality of conditional and joint distributions. By encapsulating these two concepts in a library, \pkg{MfUSampler} reduces the possibility of subtle mistakes by researchers while re-implementing the Gibbs sampler and thus allows them to focus on other, more innovative aspects of their Bayesian modeling. Brute-force application of \pkg{MfUSampler} allows researchers to get their project off the ground, maintain full control over model specification, and utilize robust univariate samplers. This can be followed by an incremental optimization approach by taking advantage of DAG properties such as conditional independence and by porting log-density functions to high-peformance languages and hardware.
+
+\bibliography{MfUSampler}
+
+\appendix
+
+\section{Setup}\label{appendix-setup}
+All \proglang{R} code shown in this paper were executed on an Intel Xeon W3680, with a CPU clock rate of 3.33GHz and 24GB of installed RAM. Below is the corresponding \proglang{R} session information.
+<<>>=
+sessionInfo()
+@
+
+\section{Proof of extended Gibbs sampling lemma}\label{section-appendix-lemma}
 The premise can be mathematically expressed as
 \begin{equation}\label{equation-premise}
 p(x'_k | \xx_{\setminus k}) = \int_{x_k} T(x'_k, x_k | \xx_{\setminus k}) p(x_k | \xx_{\setminus k}) \, \dd x_k,
@@ -127,246 +514,7 @@ while the conclusion can be expressed as
 \begin{equation}\label{equation-conclusion}
 p(x'_k , \xx_{\setminus k}) = \int_{x_k} T(x'_k, x_k | \xx_{\setminus k}) p(x_k , \xx_{\setminus k}) \, \dd x_k.
 \end{equation}
-In the above $\xx_{\setminus k}$ denotes all coordinates except for $x_k$ and $T(x'_k, x_k | \xx_{\setminus k})$ denotes the coordinate-wise Markov transition density from $x'_k$ to $x_k$. Employing the Product Rule of Probability, we have $p(x_k , \xx_{\setminus k}) = p(x'_k | \xx_{\setminus k}) \times p(\xx_{\setminus k})$. Since the coordinate-wise Markov transition does not change $\xx_{\setminus k}$, we can factor $p(\xx_{\setminus k})$ out of the integral, thereby easily reducing Equation ~\ref{equation-conclusion} to Equation~\ref{equation-premise}.
-\end{proof}
-Note that standard Gibbs sampling is a special case of the above lemma where $T(x'_k, x_k | \xx_{\setminus k}) = p(x'_k | \xx_{\setminus k})$. (The reader can easily verify that this special transition density satifies the premise.) A full Gibbs cycle is simply a succession of coordinate-wise Markov transitions, and since each one leaves the target distribution invariant according to the above lemma, same is true of the resulting composite Markov transition density.
+In the above $\xx_{\setminus k}$ denotes all coordinates except for $x_k$ and $T(x'_k, x_k | \xx_{\setminus k})$ denotes the coordinate-wise Markov transition density from $x'_k$ to $x_k$. Employing the product rule of probability, we have $p(x_k , \xx_{\setminus k}) = p(x_k | \xx_{\setminus k}) \times p(\xx_{\setminus k})$. Since the coordinate-wise Markov transition does not change $\xx_{\setminus k}$, we can factor $p(\xx_{\setminus k})$ out of the integral, thereby easily reducing Equation ~\ref{equation-conclusion} to Equation~\ref{equation-premise}.
 
-\subsection{Producing the Conditional Distributions}\label{subsection-conditional-joint}
-The internal function \code{MfU.fEval} is responsible for producing coordinate-wise conditional distributions used by the slice sampler:
-<<eval=FALSE>>=
-MfU.fEval <- function(xk, k, x, f, ...) {
-  x[k] <- xk
-  return (f(x, ...))
-}
-@
-The implementation is deceptively simple, but warrants some explanation. The funcion accepts \code{xk} -  the value of the \code{k}'th coordinate - and inserts it into the $K$-dimensional vector \code{x}. It then evaluates and returns the joint distribution \code{f} at \code{x} (fixed arguments are passed via \code{...}). Returning the joint distribution in lieu of the conditional distribution is correct because, from the perspective of each coordinate, the two are proportional:
-\begin{equation}
-p(x_k | \xx_{\setminus k}) = \frac{p(x_k , \xx_{\setminus k})}{p(\xx_{\setminus k})} \propto p(x_k , \xx_{\setminus k})
-\end{equation}
-where the first step follows from the Product Rule and in the second step, we have taken advantage of the fact that $p(\xx_{\setminus k})$ is constant in terms of $x_k$. A multiplicative constant for density translates into an additive constant for log-density, and can be safely ignored in most MCMC algorithms, including the slice sampler and ARS.
-
-Functions \code{MfU.fgEval.f} and \code{MfU.fgEval.g} produce log-density and its gradient for each coordinate, to be consumed by ARS. Since \proglang{R} package \pkg{ars} expects vector forms of input and output for log-density and its gradient, the above two functions implement such vectorization.
-
-\section[Using MfUSampler]{Using \pkg{MfUSampler}}\label{section-usage}
-In this section, we illustrate the use of \pkg{MfUSampler} using both slice sampler and ARS as underlying univariate distributions.
-\subsection{Example 1: Bayesian Logistic Regression}\label{subsection-usage-example}
-We use a Bayesian logistic regression problem ($N$ observations, $K$ coefficients) as an example. The DAG corresponding to this simple problem is shown in Figure~\ref{figure-logistic-dag}. We assume a non-informative, Gaussian prior on each of the $K$ regression coefficients in $\bbeta$ (assuming proper scaling of the covariate matrix $\XX$), using a mean of $\mu=0.0$ and a standard deviation of $\sigma=1e+6$. The full joint distribution corresponding to this DAG is given in Equation~\ref{equation-logprob-logistic}.
-
-\begin{figure}[t]
-\centering \includegraphics[width=0.4\textwidth]{fig_logistic_dag.jpg} % TODO: change figure to have sigma instead of alpha
-\caption{
-Directed Acyclic Graph representing a Bayesian logistic regression problem, with $N$ observations and $K$ coefficients. A non-informative Gaussian prior is imposed on each of the $K$ elements of $\bbeta$ using mean $\mu=0.0$ and standard deviation $\sigma=$1e+6. Plate notation is used to show the links from $\bbeta$ to each of the $N$ response values $y_n$.
-}
-\label{figure-logistic-dag}
-\end{figure}
-
-\begin{equation} \label{equation-logprob-logistic}
-L(\bbeta) = - \sum_{n=1}^N \left\{ (1-y_n) \xx_n^t \bbeta + \llog(1 + \exp(-\xx_n^t \bbeta)) \right\} - \frac{1}{2 \sigma^2} \sum_{k=1}^K (\beta_k - \mu)^2 + C,
-\end{equation}
-where the first term corresponds to the log-likelihood, the second term represents the log-prior, and $C$ captures any terms that are independent of $\bbeta$. Note that, while the log-prior term is separable in $\bbeta$, same is not true for log-likelihood. This means the joint log-distribution $L(\bbeta)$ cannot be written as $\sum_k L_k(\beta_k)$. Therefore, conditional distributions used in each of the $K$ steps in a Gibbs sampling cycle will depend on the latest draws from the other $K-1$ elements.
-
-\subsection[]{Slice Sampling using \pkg{MfUSampler}}\label{subsection-usage-slice}
-First, we must load the package into an \proglang{R} session. We also set the random seed for reporduciblity of results:
-<<>>=
-library("MfUSampler")
-set.seed(0)
-@
-Applying slice sampler to a log-density in \pkg{MfUSampler} is quite straightforward. First we must implement a function that returns the log-density. For the log-density of Equation~\ref{equation-logprob-logistic}, we can do:
-<<eval=TRUE>>=
-logit.f <- function(beta, X, y, mu=0.0, sigma=1e+6) {
-  Xbeta <- X %*% beta
-  return (-sum((1-y) * Xbeta + log(1 + exp(-Xbeta))) 
-          - sum((beta - mu)^2)/(2*sigma^2))
-}
-@
-where we have ignored the constant term $C$. Note that the first argument to \code{logit.f} is the argument for which we want to draw samples, which is \code{beta} in this case. Also note that \code{X} is a $N$-by-$K$ matrix whose n'th row corresponds to $\xx_n$ in Equation~\ref{equation-logprob-logistic}. To test \pkg{MfUSampler} on \code{logit.f}, we first generate some simulated data:
-<<eval=TRUE>>=
-N <- 1000
-K <- 5
-X <- matrix(runif(N*K, -0.5, +0.5), ncol=K)
-beta <- runif(K, -0.5, +0.5)
-y <- 1*(runif(N) < 1/(1+exp(-X %*% beta)))
-@
-We now initialize $\bbeta$ with zeros, draw samples from \code{logit.f}, and save the sampled coefficients to \code{beta.smp}:
-<<eval=TRUE>>=
-nsmp <- 100
-beta.ini <- rep(0.0, K)
-beta.smp <- array(NA, dim=c(nsmp,K))
-for (i in 1:nsmp) {
-  beta.ini <- MfU.Sample(beta.ini, f=logit.f, uni.sampler="slice", X=X, y=y)
-  beta.smp[i,] <- beta.ini
-}
-@
-We can compare the mean of the sampled coefficients (\code{beta.mcmc}) with the MLE estimate (\code{beta.glm}), throwing away the first half of the samples for burn-in:
-<<eval=TRUE>>=
-beta.mcmc <- colMeans(beta.smp[(nsmp/2+1):nsmp,])
-beta.glm <- glm(y~X-1, family="binomial")$coefficients
-cbind(beta.glm,beta.mcmc)
-@
-Increasing \code{nsmp} should bring \code{beta.mcmc} closer to \code{beta.glm}.
-
-\subsection[]{Adaptive Rejection Sampling using \pkg{MfUSampler}}\label{subsection-usage-ars}
-In order to perform ARS using \pkg{MfUSampler}, we must construct a function that outputs either the log-density or its gradient vector, depending on the value of the boolean argument \code{grad}:
-<<eval=TRUE>>=
-logit.fg <- function(beta, X, y, mu=0.0, sigma=1e+6, grad) {
-  Xbeta <- X %*% beta
-  if (grad) return (t(X) %*% (1/(1+exp(Xbeta)) - (1-y))
-                    - (beta - mu)/(2*sigma^2))
-  return (logit.f(beta, X, y, mu, sigma))
-}
-@
-We can now apply \code{MfU.Sample}, this time setting \code{uni.sampler} argument to \code{"ars"}:
-<<eval=TRUE>>=
-beta.ini <- rep(0.0, K)
-beta.smp <- array(NA, dim=c(nsmp,K))
-for (i in 1:nsmp) {
-  beta.ini <- MfU.Sample(beta.ini, f=logit.fg, uni.sampler="ars", X=X, y=y)
-  beta.smp[i,] <- beta.ini
-}
-beta.mcmc <- colMeans(beta.smp[(nsmp/2+1):nsmp,])
-cbind(beta.glm,beta.mcmc)
-@
-Again, larger values of \code{nsmp} would lead to closer match between \code{beta.mcmc} and \code{beta.glm}.
-
-So far, we ignored the control parameters of Slice sampler and ARS, thus falling back to the default values provided for each algorithm. Sometimes it is necessary to override the default values, which is possible by calling \code{MfU.Control}. To see a description of the control parameters, type \code{?MfU.Control} in your \proglang{R} session. More details on each algorithm and its tuning parameters can be found by consulting the paper~\citep{neal2003slice} for the Slice sampler, and the software documentation~\citep{rodrigues2014ars} as well as the paper~\citep{gilks1992adaptive} for ARS.
-
-The Bayesian logistic regression example is somewhat contrived. For example, the log-posterior of Equation~\ref{equation-logprob-logistic} can be shown to have a negative-definite Hessian matrix and therefore log-concave, thus being eligible for the multivariate Stochastic Newton Sampling~\citep{mahani2014sns}. The real power of \pkg{MfUSampler}, however, comes from its application to novel Bayesian models where developers seek to rapidly prototype flexible DAGs to validate their model specification, while having a path towards high-peformance applications. Section~\ref{section-workflow} contains one such example.
-
-\section[]{\pkg{MfUSampler} for Bayesian Prototyping}\label{section-workflow} % empty [] works?!
-With \pkg{MfUSampler}, prototyping a novel Bayesian model can be quite fast. Encapsulation of Gibbs cycles inside the \code{MfU.Sample} function circumvents subtle bugs during implementation of Gibbs sampling, and allows the researcher to focus his/her mental power on other, more important complexities of the problem such as model specification, MCMC diagnostics, etc.
-
-\subsection{Example 2: Heteroscedastic Linear Regression}\label{subsection-example-heteroscedastic}
-Consider a linear regression problem where we suspect heteroscedasticity of regression residuals, and that the non-uniform residual variance is itself dependent on the same covariates that are used to explain the mean response. To model such behavior, we assume the $N$ response measurements, $y_n$,  are independently drawn from this normal distribution:
-\begin{equation} \label{equation-regression-heteroscedastic}
-y_n \sim \mathcal{N}(\xx_n^t \bbeta, \sigmamax^2/(1+\exp(-\xx_n^t \ggamma)))
-\end{equation}
-This specification digresses from ordinary linear regression by making the variance parameter data-dependent. The nonlinear transformation ensures that the variance for all points is bounded between $0$ and $\sigmamax^2$. Given the matrix of covariates $\XX$ and the response vector $\yy$, our goal is to estimate $\bbeta$, $\ggamma$ and $\sigmamax$. There can be several reasons for our interest in a Bayesian treatment of this problem, and in drawing samples from the joint posterior distribution on $(\bbeta, \ggamma, \sigmamax)$: 1) future extension of the model in a probabilistic framework, e.g. using a Hierrarchical Bayesian approach to pool data across heterogneous observation units, 2) our suspicion that the posterior distribution is not globally convex, has a complex shape with multiple possible maxima, and thus sampling the its entire landscape can be safer than looking for a single, local optimum, and 3) fully probabilistic treatment of parameter estimation as well as response prediction.
-
-To avoid clutter, we assume non-informative priors on all parameters and ignore them to focus only on the log-likelihood function corresponding to Equation~\ref{equation-regression-heteroscedastic}, which can be implemented using this \proglang{R} function:
-<<eval=TRUE>>=
-loglike <- function(beta, gamma, sigmamax, X, y) {
-  mean.vec <- X%*%beta
-  sd.vec <- sigmamax/sqrt(1+exp(-X%*%gamma))
-  return (sum(dnorm(y, mean.vec, sd.vec, log=TRUE)))
-}
-@
-To feed the log-likelihood function into \code{MfU.Sample}, we write a thin wrapper around it:
-<<eval=TRUE>>=
-loglike.wrapper <- function(coeff, X, y) {
-  K <- ncol(X)
-  beta <- coeff[1:K]
-  gamma <- coeff[K+1:K]
-  sigmamax <- coeff[2*K+1]
-  return (loglike(beta, gamma, sigmamax, X, y))
-}
-@
-We can now generate some data and draw samples from the resulting log-likelihood. Note the use of \code{MfU.Control} to set a lower bound of \code{1e-3} on \code{sigmax}:
-<<eval=TRUE>>=
-# generate simulated data
-K <- 5
-N <- 1000
-X <- matrix(runif(N*K, -0.5, +0.5), ncol=K)
-beta <- runif(K, -0.5, +0.5)
-gamma <- runif(K, -0.5, +0.5)
-sigmamax <- 0.75
-mu <- X%*%beta
-var <- sigmamax^2/(1+exp(-X%*%gamma))
-y <- rnorm(N, mu, sqrt(var))
-# initialize and sample
-coeff <- c(rep(0.0, 2*K), 0.5)
-mycontrol <- MfU.Control(n = 2*K+1, slice.lower = c(rep(-Inf,2*K), 0.001))
-coeff.smp <- array(NA, dim=c(nsmp, 2*K+1))
-t <- proc.time()[3]
-for (i in 1:nsmp) {
-  coeff <- MfU.Sample(coeff, f=loglike.wrapper, X=X, y=y, control = mycontrol)
-  coeff.smp[i,] <- coeff
-}
-t <- proc.time()[3]-t
-cat("time:", t, "\n")
-beta.est <- colMeans(coeff.smp[(nsmp/2+1):nsmp, 1:K])
-gamma.est <- colMeans(coeff.smp[(nsmp/2+1):nsmp, K+1:K])
-sigmamax.est <- mean(coeff.smp[(nsmp/2+1):nsmp, 2*K+1])
-cbind(beta, beta.est, gamma, gamma.est)
-c(sigmamax, sigmamax.est)
-@
-Note that we applied \code{MfU.Sample} to \code{sigmamax} even though it is a scalar rather than a vector. In principle, we could directly call the slice sampler, but using the same higher level function \code{MfU.Sample} call keeps the code more organized and easier to track. Despite \code{nsmp} being small, we see general agreement between actual and estimated parameters, especially for \code{sigsq} and \code{beta}. Of course, proper MCMC diagnostics including trace plot examination, histogram examination, and effective size calculation must be done to adjust sampling parameters and determine the next step in the modeling process, including model re-specification.
-
-\subsection[]{Performance Improvement Techniques}\label{subsection-workflow-efficiency}
-Feeding the full joint distribution for a DAG into \code{MfU.Sample} is often a good, first step but it can be computationally brute-force. There are several opportunities for performance improvement once the foundation is laid and the model structure is somewhat validated. The root-cause of inefficiency in our brute-force approach is that we are evaluating the full, joint density during univariate sampling of each coordinate of the state space. This may not be necessary for several reasons:
-\begin{enumerate}
-\item For some variables or variable groups, exact sampling techniques may be possible. This often arises when the likelihood and prior terms in a hierarchical model are conjugate, making the posterior distribution have the same functional form as the likelihood. When conjugacy allows for exact sampling, it is often the preferred route compared to MCMC sampling~\citep{robert1999monte}.
-\item If some variables (or groups of variables) are conditionally-independent, their joint distribution, conditioned on the remaining variables, is separable~\citep{wilkinson2006parallel}. Therefore, while sampling each variable, we only need to evaluate a subset of additive terms comprising log-likelihood. This situation can arise, for example, in Hierarchical Bayesian regression models~\citep{rossi2003bayesian,gelman2006data}. In addition to permitting lighter conditional posterior evaluations, conditional independence can also be taken advantage of in parallel Gibbs sampling~\citep{wilkinson2006parallel}.
-\item Even when conditional independence does not exist, we may still find opportunities to drop some of the additive terms in the log-posterior for all or a subset of the variables, thereby reducing the time needed to evaluate conditional posteriors during Gibbs cycles.
-\end{enumerate}
-
-In the above cases, the general strategy is to split the full state space into subspaces and apply the more efficient techniques within each subspace. Bayesian compilers are effective to varying degrees at identifying and taking advantage of such optimization opportunities. A detailed discussion of these topics is beyond the scope of this paper. Here we illustrate the last item in the above list, continuing the heteroscedastic linear regression example of Section~\ref{subsection-example-heteroscedastic}.
-
-The \code{loglike} function of Section~\ref{subsection-example-heteroscedastic} can be expanded as below (ignoring constant terms):
-\begin{eqnarray}\label{equation-heteroscedastic-terms}\nonumber
-L(\bbeta, \ggamma, \sigmamax) &=& -N \llog \sigmamax + \frac{1}{2} \sum_{n=1}^N \llog \left( 1 + \exp(- \xx_n^t \ggamma) \right) \\
-&& - \frac{1}{2 \sigmamax^2} \sum_{n=1}^N \left\{ (y_n - \xx_n^t \bbeta)^2 \left( 1 + \exp (- \xx_n^t \ggamma) \right) \right\}
-\end{eqnarray}
-We see that, of the above three additive terms, only the last term depends on all three variable blocks $\bbeta$, $\ggamma$ and $\sigmamax$, while the first two depend only on $\sigmamax$ and $\ggamma$, respectively. Taking advantage of this, we can write simplified conditional log-likelihood functions as below:
-\begin{align}
-\left\{
-\begin{array}{lll}
-L(\bbeta \,|\, \ggamma, \sigmamax) &= - \frac{1}{2 \sigmamax^2} \sum_{n=1}^N \left\{ (y_n - \xx_n^t \bbeta)^2 \left( 1 + \exp (- \xx_n^t \ggamma) \right) \right\} \\ \\
-L(\ggamma \,|\, \bbeta, \sigmamax) &=  \frac{1}{2} \sum_{n=1}^N \llog \left( 1 + \exp(- \xx_n^t \ggamma) \right) - \frac{1}{2 \sigmamax^2} \sum_{n=1}^N \left\{ (y_n - \xx_n^t \bbeta)^2 \left( 1 + \exp (- \xx_n^t \ggamma) \right) \right\} \\ \\
-L(\sigmamax \,|\, \bbeta, \ggamma) &= -N \llog \sigmamax - \frac{1}{2 \sigmamax^2} \sum_{n=1}^N \left\{ (y_n - \xx_n^t \bbeta)^2 \left( 1 + \exp (- \xx_n^t \ggamma) \right) \right\}
-\end{array}
-\right.
-\end{align}
-Referring to the three terms on the right-hand side of Equation~\ref{equation-heteroscedastic-terms} as components 1-3, the \proglang{R} implementation of the above conditional distributions will be:
-<<eval=TRUE>>=
-loglike.component1 <- function(sigmamax, N) -N*log(sigmamax)
-loglike.component2 <- function(gamma, X) 0.5*sum(log(1 + exp(-X%*%gamma)))
-loglike.component3 <- function(beta, gamma, sigmamax, X, y) {
-  -sum((y-X%*%beta)^2*(1+exp(-X%*%gamma)))/(2*sigmamax^2)
-}
-loglike.beta <- function(beta, gamma, sigmamax, X, y) {
-  loglike.component3(beta, gamma, sigmamax, X, y)
-}
-loglike.gamma <- function(gamma, beta, sigmamax, X, y) {
-  loglike.component2(gamma, X) +
-    loglike.component3(beta, gamma, sigmamax, X, y)
-}
-loglike.sigmamax <- function(sigmamax, beta, gamma, sigma, X, y) {
-  loglike.component1(sigmamax, nrow(X)) +
-    loglike.component3(beta, gamma, sigmamax, X, y)
-}
-@
-Each Gibbs cycle will be broken into 3 steps, corresponding to $\bbeta$, $\ggamma$ and $\sigmamax$:
-<<eval=TRUE>>=
-beta.ini <- rep(0.0, K)
-gamma.ini <- rep(0.0, K)
-sigmamax.ini <- 0.5
-mycontrol.sigmamax <- MfU.Control(n = 1, slice.lower = 0.001)
-coeff.smp <- array(NA, dim=c(nsmp, 2*K+1))
-t <- proc.time()[3]
-for (i in 1:nsmp) {
-  beta.ini <- MfU.Sample(beta.ini, loglike.beta, gamma=gamma.ini
-                 , sigmamax=sigmamax.ini, X=X, y=y)
-  gamma.ini <- MfU.Sample(gamma, loglike.gamma, beta=beta.ini
-                 , sigmamax=sigmamax.ini, X=X, y=y)
-  sigmamax.ini <- MfU.Sample(sigmamax, loglike.sigmamax
-                 , beta=beta.ini, gamma=gamma.ini
-                 , X=X, y=y, control = mycontrol.sigmamax)
-  coeff.smp[i,] <- c(beta.ini, gamma.ini, sigmamax.ini)
-}
-t <- proc.time()[3]-t
-cat("time:", t, "\n")
-beta.est <- colMeans(coeff.smp[(nsmp/2+1):nsmp, 1:K])
-gamma.est <- colMeans(coeff.smp[(nsmp/2+1):nsmp, K+1:K])
-sigmamax.est <- mean(coeff.smp[(nsmp/2+1):nsmp, 2*K+1])
-cbind(beta, beta.est, gamma, gamma.est)
-c(sigmamax, sigmamax.est)
-@
-In this case, the time savings from our improvements is modest, but for other problems the impact can be more pronounced. For example, for HB regression problems the speedup from breaking down the conditional posterior across regression groups will roughly be proportional to the number of groups, even before applying any parallelization (which could theoretically offer another multiplicative speedup equal to number of groups, given sufficient number of processing cores available).
-
-For statistical problems of moderate to large size (i.e. number of observations and/or covariates) and in the absence of conjugacy for coefficients that are directly involved in explaining the response, the majority of time is often spent in log-density evaluations, rather than other activities such as random number generation or the sampling algorithm itself. Therefore, the next most rewarding optimization step is likely to be porting of log-density functions to high-performance languages such as \proglang{C}, \proglang{C++}, \proglang{FORTRAN}. For large problems, even parallel hardware such as Graphic Processing Units (GPUs) can be utilized by writing log-density functions in languages such as \proglang{CUDA}, while continuing to take advantage of \pkg{MfUSampler} for sampler control logic. Minimizing data movement between processor and co-processor is a key performance factor in such cases. Finally, should further performance improvement necessitate a rewrite of the \pkg{MfUSampler} logic in a high-peformance language, the package source code can be used as a blue-print for efficient development.
-
-\section{Summary}\label{section-summary}
-The \proglang{R} package \pkg{MfUSampler} enables MCMC sampling of multivariate distributions using univariate algorithms. It relies on an extension of Gibbs sampling from univariate independent samplig to univariate Markov transitions, and proportionality of conditional and joint distributions. By encapsulating these two concepts in a library, it reduces the possibility of subtle mistakes by researchers while re-implementing the Gibbs sampler and thus allows them to focus on other, more innovative aspects of their Bayesian modeling. Brute-force application of \pkg{MfUSampler} allows researchers to get their project off the ground, maintain full control over model specification, and utilize robust univariate samplers. This can be followed by an incremental optimization approach by taking advantage of DAG properties such as conjugacy, conditional independence and by porting log-density functions to high-peformance languages and hardware.
-
-\bibliography{MfUSampler}
+Note that standard Gibbs sampling is a special case of the above lemma where $T(x'_k, x_k | \xx_{\setminus k}) = p(x'_k | \xx_{\setminus k})$. The reader can easily verify that this special transition density satifies the premise.
 \end{document}

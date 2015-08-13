@@ -1,3 +1,17 @@
-import(ars)
-export(MfU.Sample, MfU.Control)
+export("MfU.Sample", "MfU.Control", "MfU.Sample.Run")
 
+importFrom("graphics", "plot")
+importFrom("stats", "printCoefmat", "quantile", "rexp", "runif", "sd", "cov", "rnorm")
+
+importFrom("ars", "ars")
+importFrom("HI", "arms")
+
+import("coda")
+
+  
+S3method("summary", "MfU")
+S3method("print", "summary.MfU")
+S3method("plot", "MfU")
+S3method("predict", "MfU")
+S3method("summary", "predict.MfU")
+S3method("print", "summary.predict.MfU")
