@@ -1,3 +1,9 @@
+Changes in version 1.0.2
+  * Added DOI to citations in description.
+
+Changes in version 1.0.1
+  * Changed maintainer email address.
+
 Changes in version 1.0.0
   * Added adaptive rejection Metropolis sampler and univariate Metropolis with Gaussian proposal.
   * Added convenience wrapper MfU.Sample.Run for drawing multiple samples.
