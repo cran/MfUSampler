@@ -1,0 +1,22 @@
+bibentry(bibtype = "Article",
+  title        = "Multivariate-From-Univariate MCMC Sampler: The {R} Package {MfUSampler}",
+  author       = c(person(given = c("Alireza", "S."),
+                          family = "Mahani",
+                          email = "alireza.mahani@sentrana.com"),
+                   person(given = c("Mansour", "T.", "A."),
+                          family = "Sharabiani")),
+  journal      = "Journal of Statistical Software, Code Snippets",
+  year         = "2017",
+  volume       = "78",
+  number       = "1",
+  pages        = "1--22",
+  doi          = "10.18637/jss.v078.c01",
+
+  header       = "To cite MfUSampler in publications use:",
+  textVersion  =
+  paste("Alireza S. Mahani, Mansour T. A. Sharabiani (2017).",
+        "Multivariate-From-Univariate MCMC Sampler: The R Package MfUSampler.",
+        "Journal of Statistical Software, Code Snippets, 78(1), 1-22.",
+        "doi:10.18637/jss.v078.c01")
+)
+

@@ -35,6 +35,9 @@ Method for sample-based prediction using the output of \code{\link{MfU.Sample.Ru
 \code{predict.MfU} produces a matrix with number of rows equal to the length of prediction vector produces by \code{fpred}. Its numnber of columns is equal to the number of samples used within the user-specified range, and after thinning (if any). \code{summary.predict.MfU} produces sample-based prediction mean, standard deviation, quantiles, and effective sample size.
 }
 
+\references{
+Mahani A.S and Sharabiani M.T.A. (2017). Multivariate-From-Univariate MCMC Sampler: The R Package MfUSampler. Journal of Statistical Software, Code Snippets, 78(1), 1-22. doi:10.18637/jss.v078.c01
+}
 \author{
 Alireza S. Mahani, Mansour T.A. Sharabiani
 }

@@ -1,3 +1,7 @@
+Changes in version 1.0.3
+  * Added CITATION file to reference JSS paper.
+  * Added reference to JSS paper to .Rd files.
+
 Changes in version 1.0.2
   * Added DOI to citations in description.
 

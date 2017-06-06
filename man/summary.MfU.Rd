@@ -30,6 +30,9 @@ Methods for summarizing and plotting the output of \code{\link{MfU.Sample.Run}}.
   \item{x}{For \code{plot.MfU}, an object of class "MfU", typically the output of \code{\link{MfU.Sample.Run}}; for \code{print.summary.MfU}, an object of class \code{summary.MfU}, typically the output of \code{summary.MfU} function.}
 }
 
+\references{
+Mahani A.S and Sharabiani M.T.A. (2017). Multivariate-From-Univariate MCMC Sampler: The R Package MfUSampler. Journal of Statistical Software, Code Snippets, 78(1), 1-22. doi:10.18637/jss.v078.c01
+}
 \value{
 These functions are thin wrappers around \code{summary.mcmc} and \code{plot.mcmc}. See \pkg{coda} package documentation for details.
 }

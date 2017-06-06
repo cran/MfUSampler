@@ -38,7 +38,9 @@ Gilks W.R. and Wild P. (1992). Adaptive Rejection Sampling. \emph{Applied Statis
 
 Gilks W.R., Best N.G., and Tan K.K.C. (1995) Adaptive rejection Metropolis sampling within Gibbs sampling. \emph{Applied Statistics}, \bold{44}, 455-472.
 
-Mahani A.S., Hasan A., Jiang M. and Sharabiani M.T.A. (2014). sns: Stochastic Newton Sampler. R package version 0.9. http://CRAN.R-project.org/package=sns.
+Mahani A.S., Hasan A., Jiang M. and Sharabiani M.T.A. (2016). Stochastic Newton Sampler: The R Package sns. Journal of Statistical Software, Code Snippets, 74(2), 1-33. doi:10.18637/jss.v074.c02
+
+Mahani A.S and Sharabiani M.T.A. (2017). Multivariate-From-Univariate MCMC Sampler: The R Package MfUSampler. Journal of Statistical Software, Code Snippets, 78(1), 1-22. doi:10.18637/jss.v078.c01
 
 Neal R.M. (2003). Slice Sampling. \emph{Annals of Statistics}, \bold{31}, 705-767.
 
