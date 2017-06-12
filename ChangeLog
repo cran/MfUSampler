@@ -1,3 +1,7 @@
+Changes in version 1.0.4
+  * Modified code that calls coda:::mcmc according to correct interpretation of arguments statr, end and thin.
+  * Edited package welcome message.
+
 Changes in version 1.0.3
   * Added CITATION file to reference JSS paper.
   * Added reference to JSS paper to .Rd files.

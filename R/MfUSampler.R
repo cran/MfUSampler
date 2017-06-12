@@ -76,7 +76,9 @@ MfU.Sample.Run <- function(x, f, uni.sampler = c("slice", "ars", "arms", "unimet
 summary.MfU <- function(object, start = round(nrow(object)/2) + 1, end = nrow(object), thin = 1
   , quantiles = c(0.025, 0.5, 0.975)
   , ...) {
-  coda.object <- mcmc(data = as.matrix(object), start = start, end = end, thin = thin)
+  myseq <- seq(from = start, to = end, by = thin)
+  end.real <- myseq[length(myseq)]
+  coda.object <- mcmc(data = as.matrix(object)[myseq, , drop = FALSE], start = start, end = end.real, thin = thin)
   ret <- summary(coda.object, quantiles = quantiles)
   
   # adding a few items to coda output
@@ -118,7 +120,9 @@ print.summary.MfU <- function(x, ...) {
 # plot
 plot.MfU <- function(x, start = round(nrow(x)/2) + 1
   , end = nrow(x), thin = 1, ...) {
-  x <- mcmc(data = as.array(x), start = start, end = end, thin = thin)
+  myseq <- seq(from = start, to = end, by = thin)
+  end.real <- myseq[length(myseq)]
+  x <- mcmc(data = as.array(x)[myseq, , drop = FALSE], start = start, end = end, thin = thin)
   plot(x, ...)
 }
 
