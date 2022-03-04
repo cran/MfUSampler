@@ -1,3 +1,9 @@
+Changes in version 1.0.6
+  * Added the --compact-vignettes="gs+qpdf" to R CMD build to compress the vignette.
+
+Changes in version 1.0.5
+  * Changed the default sampler in MfU.Sample from a vector to a single value. This was prompted by a change in CRAN to strictly enforce that length of argument in a logical check must not be larger than 1.
+
 Changes in version 1.0.4
   * Modified code that calls coda:::mcmc according to correct interpretation of arguments statr, end and thin.
   * Edited package welcome message.

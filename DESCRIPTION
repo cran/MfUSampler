@@ -1,8 +1,8 @@
 Package: MfUSampler
 Type: Package
 Title: Multivariate-from-Univariate (MfU) MCMC Sampler
-Version: 1.0.4
-Date: 2017-06-09
+Version: 1.0.6
+Date: 2022-03-03
 Author: Alireza S. Mahani, Mansour T.A. Sharabiani
 Maintainer: Alireza S. Mahani <alireza.s.mahani@gmail.com>
 Description: Convenience functions for multivariate MCMC using univariate samplers including:
@@ -14,6 +14,6 @@ License: GPL (>= 2)
 Imports: ars, HI, coda
 Suggests: sns, RcppArmadillo, inline, mvtnorm
 NeedsCompilation: no
-Packaged: 2017-06-12 22:55:43 UTC; asmahani
+Packaged: 2022-03-04 04:05:13 UTC; ubuntu
 Repository: CRAN
-Date/Publication: 2017-06-13 00:03:57 UTC
+Date/Publication: 2022-03-04 11:50:09 UTC

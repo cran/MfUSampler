@@ -22,7 +22,7 @@ MfU.fgEval.g <- function(uk, k, u, func, ...) {
 }
 
 # public function: multivariate sampler, utilizing univariate samplers (slice/ars/arms) through a Gibbs wrapper
-MfU.Sample <- function(x, f, uni.sampler = c("slice", "ars", "arms", "unimet")
+MfU.Sample <- function(x, f, uni.sampler = "slice"
   , ..., control = MfU.Control(length(x))) {
   if (uni.sampler == "slice") {
     for (k in 1:length(x)) {
