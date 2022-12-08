@@ -4,7 +4,7 @@ importFrom("graphics", "plot")
 importFrom("stats", "printCoefmat", "quantile", "rexp", "runif", "sd", "cov", "rnorm")
 
 importFrom("ars", "ars")
-importFrom("HI", "arms")
+importFrom("dlm", "arms")
 
 import("coda")
 
